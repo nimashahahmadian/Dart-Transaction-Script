@@ -3,7 +3,7 @@ This code is for illustrating the creation of a transaction on ethereum based ch
 to use this code you have to set 'toAddress', 'nounce', 'amount', 'gasPrice', 'chainID', 'signersPublicKey'
 then run main to get 'legacy hashMsg' corresponding variable would be 'rlphash'
 
-sign the message(In my case i used a hard wallet)
+sign the message(In my case i used a hardware wallet)
 
 get the Derformat of signature illustrated 
 
