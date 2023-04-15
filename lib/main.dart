@@ -8,20 +8,24 @@ import 'package:pointycastle/ecc/curves/secp256k1.dart';
 
 import 'package:rlp/rlp.dart';
 import 'package:rlp/src/address.dart';
+import 'package:ecdsa/ecdsa.dart';
+import 'package:elliptic/elliptic.dart';
+import 'package:web3dart/crypto.dart';
 
 void main() async {
   var to = '42cAB71dc20BdC5ffeab2112F721eE0Bf55e72E1';
   String s = '';
   String r = '';
-  int nounce = 172;
+  int nounce = 9;
   double amount = 0.0001;
-  double gasprice = 29; //gwei
-  int chainID = 5;
-  int recID = 1;
+  double gasprice = 4; //gwei
+  int chainID = 80001;
+  int recID = 0;
   var maxValueForS = BigInt.parse('FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141', radix: 16);
   var treshHoldForS = BigInt.parse('7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0', radix: 16);
   String signed =
-      '304402201D568D2E7162E711FEF77AD2773B0FA8B619D0FFBB297CCB8FC02745C57FFC1902200A18DCD9F6DBFB0F81A4C5EB807F023025287A37CF8139D5DB70874AC4823D29';
+      '304402207BD15EDBFD6972324DF2B72D15CF240979DD6437B969FF8CAD913E577CEAC1DD02206629E5DADE98C1B311B97FE5F9E692F3D1CEFA3E9A5784841E542D170B33D281';
+  String signersPublicKey = '9da10855a89acc92599190b133faec5b484ac780b3e03e479fd7743205748636';
   var apiUrl = "https://polygon-rpc.com"; //Replace with your API
   "https://gasstation-mainnet.matic.network/v2";
   header() => {"Content-Type": "application/json"};
@@ -39,15 +43,15 @@ void main() async {
   var transactioneip1559 = {
     "chainID": chainID,
     "Nonce": nounce,
-    "maxpriorityfeepergas": (1 * pow(10, 9)).toInt(),
-    "maxfeepergas": (gasprice * pow(10, 9)).toInt(),
-    "Gas Limit": 9000000,
+    "maxpriorityfeepergas": (gasprice * pow(10, 9)).toInt(),
+    "maxfeepergas": (gasprice * pow(10, 9)).toInt() + 40,
+    "Gas Limit": 21000,
     "To Address": BigInt.parse(to, radix: 16),
     "Amount": (amount * pow(10, 18)).toInt(),
     "data": '',
     'accesslist': List.empty(),
     // 'v': 80001,
-    "v": 1,
+    "v": recID,
     "r": r,
     "s": s
   };
@@ -60,19 +64,36 @@ void main() async {
   var rlphashEip1559 = AuthenticationHash.hashKeccak256(rlpEip1559);
   print('legacy hashMsg: $rlphash');
   print('eip1559 hashMsg: $rlphashEip1559');
-
-  r = signed.split('022')[1].substring(1);
-  s = signed.split('022')[2].substring(1);
-
+  var rLen = HexUtils.hexStringToByteArray(signed.substring(6, 8));
+  r = signed.substring(8, 8 + rLen[0] * 2);
+  s = signed.substring(12 + rLen[0] * 2);
   transaction['r'] = BigInt.parse(r, radix: 16);
   transactioneip1559['r'] = BigInt.parse(r, radix: 16);
 
-  if (BigInt.parse(s, radix: 16) < treshHoldForS) {
+  if (BigInt.parse(s, radix: 16) <= treshHoldForS) {
     transaction['s'] = BigInt.parse(s, radix: 16);
     transactioneip1559['s'] = BigInt.parse(s, radix: 16);
   } else {
     transaction['s'] = maxValueForS - BigInt.parse(s, radix: 16);
     transactioneip1559['s'] = maxValueForS - BigInt.parse(s, radix: 16);
+    print('recid changed here');
+    recID = (1 + recID) % 2;
+  }
+
+  for (int i = 0; i < 8; i++) {
+    var sig = MsgSignature(transaction['r'] as BigInt, transaction['s'] as BigInt, 27 + i);
+    try {
+      String pk = HexUtils.byteArrayToHexString(ecRecover(HexUtils.hexStringToByteArray(rlphash), sig));
+      if (pk.substring(0, 64) == signersPublicKey) {
+        print(pk);
+        print(i);
+        recID = recID + (i % 2);
+      }
+
+      //recID=i%2
+    } catch (e) {
+      print('Recovery id is not ${27 + i}');
+    }
   }
   transaction['v'] = chainID * 2 + 35 + recID;
 
@@ -82,8 +103,6 @@ void main() async {
   var signedRlpEip1559 = Rlp.encode(listEip1559);
   print("legacy transaction : ${HexUtils.byteArrayToHexString(signedRlp)}");
   print("eip1559 transaction : 0x02${HexUtils.byteArrayToHexString(signedRlpEip1559)}");
-
-  print(BigInt.parse(s, radix: 16) > treshHoldForS);
 }
 
 class HexUtils {
