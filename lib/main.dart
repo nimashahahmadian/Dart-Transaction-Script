@@ -16,19 +16,16 @@ void main() async {
   var to = '42cAB71dc20BdC5ffeab2112F721eE0Bf55e72E1';
   String s = '';
   String r = '';
-  int nounce = 9;
+  int nounce = 16;
   double amount = 0.0001;
-  double gasprice = 4; //gwei
+  double gasprice = 2; //gwei
   int chainID = 80001;
   int recID = 0;
   var maxValueForS = BigInt.parse('FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141', radix: 16);
   var treshHoldForS = BigInt.parse('7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0', radix: 16);
   String signed =
-      '304402207BD15EDBFD6972324DF2B72D15CF240979DD6437B969FF8CAD913E577CEAC1DD02206629E5DADE98C1B311B97FE5F9E692F3D1CEFA3E9A5784841E542D170B33D281';
+      '3045022052D572F2B75099FD25E9AAD305586771005595DCEE04B2BFE65D62C1F2DA330A02210093E8257D0E51D7234489A75F0C6D724A08279ACAA716F85FD408CF8AB0EDE577';
   String signersPublicKey = '9da10855a89acc92599190b133faec5b484ac780b3e03e479fd7743205748636';
-  var apiUrl = "https://polygon-rpc.com"; //Replace with your API
-  "https://gasstation-mainnet.matic.network/v2";
-  header() => {"Content-Type": "application/json"};
   var transaction = {
     "Nonce": nounce,
     "Gas Price": (gasprice * pow(10, 9)).toInt(),
@@ -76,26 +73,42 @@ void main() async {
   } else {
     transaction['s'] = maxValueForS - BigInt.parse(s, radix: 16);
     transactioneip1559['s'] = maxValueForS - BigInt.parse(s, radix: 16);
-    print('recid changed here');
-    recID = (1 + recID) % 2;
+    // print('recid changed here');
+    // recID = (1 + recID) % 2;
   }
 
-  for (int i = 0; i < 8; i++) {
+  for (int i = 0; i < 2; i++) {
     var sig = MsgSignature(transaction['r'] as BigInt, transaction['s'] as BigInt, 27 + i);
     try {
       String pk = HexUtils.byteArrayToHexString(ecRecover(HexUtils.hexStringToByteArray(rlphash), sig));
       if (pk.substring(0, 64) == signersPublicKey) {
         print(pk);
         print(i);
-        recID = recID + (i % 2);
+        recID = (recID + i) % 2;
+        print(recID);
       }
-
+      //recID=i%2
+    } catch (e) {
+      print('Recovery id is not ${27 + i}');
+    }
+  }
+  for (int i = 0; i < 2; i++) {
+    var sigeip1559 = MsgSignature(transactioneip1559['r'] as BigInt, transactioneip1559['s'] as BigInt, 27 + i);
+    try {
+      String pk = HexUtils.byteArrayToHexString(ecRecover(HexUtils.hexStringToByteArray(rlphashEip1559), sigeip1559));
+      if (pk.substring(0, 64) == signersPublicKey) {
+        print(pk);
+        print(i);
+        recID = recID + (i % 2);
+        print(recID);
+      }
       //recID=i%2
     } catch (e) {
       print('Recovery id is not ${27 + i}');
     }
   }
   transaction['v'] = chainID * 2 + 35 + recID;
+  transactioneip1559['v'] = recID;
 
   list = List.from(transaction.values);
   listEip1559 = List.from(transactioneip1559.values);
